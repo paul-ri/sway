@@ -546,6 +546,17 @@ static void queue_output_config(struct output_config *oc,
 		hdr = false;
 	}
 	set_hdr(wlr_output, pending, hdr);
+
+	if (oc && oc->color_transform == NULL && oc->render_bit_depth == RENDER_BIT_DEPTH_10 &&
+			(wlr_output->supported_primaries & WLR_COLOR_NAMED_PRIMARIES_BT2020) &&
+			server.renderer->features.output_color_transform) {
+		const struct wlr_output_image_description image_desc = {
+			.primaries = WLR_COLOR_NAMED_PRIMARIES_BT2020,
+		};
+		wlr_output_state_set_image_description(pending, &image_desc);
+	} else if (wlr_output->supported_primaries != 0) {
+		wlr_output_state_set_image_description(pending, NULL);
+	}
 }
 
 static bool finalize_output_config(struct output_config *oc, struct sway_output *output,
@@ -611,6 +622,12 @@ static bool finalize_output_config(struct output_config *oc, struct sway_output 
 		assert(output->color_transform == NULL);
 		output->color_transform = wlr_color_transform_init_linear_to_inverse_eotf(
 			applied->image_description->primaries, applied->image_description->transfer_function);
+	}
+
+	if (output->color_transform == NULL && oc && oc->render_bit_depth == RENDER_BIT_DEPTH_10 &&
+			(wlr_output->supported_primaries & WLR_COLOR_NAMED_PRIMARIES_BT2020) &&
+			server.renderer->features.output_color_transform) {
+		output->color_transform = wlr_color_transform_init_srgb(WLR_COLOR_NAMED_PRIMARIES_BT2020);
 	}
 
 	output->max_render_time = oc && oc->max_render_time > 0 ? oc->max_render_time : 0;
